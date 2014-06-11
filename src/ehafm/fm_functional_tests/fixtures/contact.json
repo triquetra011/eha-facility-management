@@ -1,0 +1,11 @@
+[
+{
+  "pk": 1, 
+  "model": "fm.contact", 
+  "fields": {
+    "contact_email": "zygmunt@fm.zyg", 
+    "contact_name": "Zygmunt the Admin", 
+    "contact_phone": "+44 4444 444 444"
+  }
+}
+]

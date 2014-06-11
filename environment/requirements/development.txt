@@ -1,0 +1,10 @@
+# Local development dependencies go here
+-r base.txt
+selenium
+pyvirtualdisplay
+coverage==3.6
+django-discover-runner==0.4
+django-debug-toolbar==0.9.4
+django-extensions==0.9
+Werkzeug==0.9.4
+Sphinx==1.2b1

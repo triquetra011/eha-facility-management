@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Areas{% endblock %}
+
+{% block content %}
+
+    <h1>Areas</h1>
+    <h2>Menu:</h2>
+    <ul>
+        <li>
+            <a href="/fm/areas/new" id="id_add_new_area_link">add a new area</a>
+        </li>
+    </ul>
+    <h2>List of Areas:</h2>
+    <table id="id_areas_table" class="table">
+        <tr><th>Area</th><th>Area Type</th></tr>
+        {% for area in areas %}
+            <tr>
+                <td>{{ forloop.counter }}: {{ area.area_name }}</td>
+                <td>{{ area.area_type }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+
+{% endblock %}
+

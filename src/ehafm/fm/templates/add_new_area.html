@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Add New Area{% endblock %}
+
+{% block content %}
+
+    <h1>Add New Area</h1>
+    <form method="POST">
+        {{ form.as_p }}
+        {% csrf_token %}
+        <input type="submit" value="save" id="id_submit_button">
+    </form>
+
+{% endblock %}
