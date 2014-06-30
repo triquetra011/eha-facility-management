@@ -3,6 +3,8 @@ __copyright__ = 'Copyright (c) 2014, Tomasz J. Kotarba. All rights reserved.'
 
 from django.db import models
 
+from jsonfield import JSONField
+
 
 AREA_TYPES = (
     ('State', 'State'),
@@ -58,6 +60,10 @@ class Facility(models.Model):
     facility_area = models.ForeignKey(Area, related_name='area_facilities',
                                       default=None, null=True, blank=True,
                                       on_delete=models.SET_NULL)
+    # Set help_text to something else than empty but still invisible so that
+    # the JSONField does not set it to its custom default (we want nothing
+    # displayed).
+    json = JSONField(null=True, blank=True, help_text=' ')
 
     def __unicode__(self):
         name = str(self.facility_name)
@@ -76,6 +82,10 @@ class Contact(models.Model):
     contact_name = models.TextField()
     contact_phone = models.CharField(max_length=32)
     contact_email = models.EmailField()
+    # Set help_text to something else than empty but still invisible so that
+    # the JSONField does not set it to its custom default (we want nothing
+    # displayed).
+    json = JSONField(null=True, blank=True, help_text=' ')
 
     def __unicode__(self):
         if self.contact_email:

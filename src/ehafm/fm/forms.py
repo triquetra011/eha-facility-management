@@ -20,19 +20,23 @@ class FacilityForm(forms.ModelForm):
     class Meta:
         model = Facility
         fields = ('facility_name', 'facility_type', 'facility_status',
-                  'facility_area',)
+                  'facility_area', 'json',)
         widgets = {
             'facility_name': forms.fields.TextInput(
                 attrs={'placeholder': 'Enter a name', }),
             'facility_status': forms.fields.TextInput(
                 attrs={'placeholder': 'Enter a status', }),
+            'json': forms.Textarea(
+                attrs={'placeholder': 'Enter valid JSON or leave blank', }),
         }
 
 
 class ContactForm(forms.ModelForm):
     class Meta:
         model = Contact
-        fields = ('contact_name', 'contact_phone', 'contact_email',)
+        fields = (
+            'contact_name', 'contact_phone', 'contact_email', 'json',
+        )
         widgets = {
             'contact_name': forms.fields.TextInput(
                 attrs={'placeholder': 'Enter a name', }),
@@ -40,6 +44,8 @@ class ContactForm(forms.ModelForm):
                 attrs={'placeholder': 'Enter a phone number', }),
             'contact_email': forms.fields.EmailInput(
                 attrs={'placeholder': 'Enter an e-mail', }),
+            'json': forms.Textarea(
+                attrs={'placeholder': 'Enter valid JSON or leave blank', }),
         }
 
 

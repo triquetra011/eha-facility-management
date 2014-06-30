@@ -74,6 +74,7 @@ class FacilityModelTest(TestCase):
         self.assertEqual(facility.facility_name, '')
         self.assertEqual(facility.facility_status, '')
         self.assertEqual(facility.facility_area, None)
+        self.assertEqual(facility.json, None)
 
     def test_area_set_correctly_on_adding_a_facility_to_an_area(self):
         facility = Facility.objects.create()
@@ -136,6 +137,7 @@ class ContactModelTest(TestCase):
         self.assertEqual(contact.contact_name, '')
         self.assertEqual(contact.contact_phone, '')
         self.assertEqual(contact.contact_email, '')
+        self.assertEqual(contact.json, None)
 
     def test_by_default_contact_string_contains_its_name(self):
         contact = Contact.objects.create(contact_name='Contact 0',

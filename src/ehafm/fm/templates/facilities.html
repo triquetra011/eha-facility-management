@@ -20,6 +20,7 @@
             <th>Facility Type</th>
             <th>Status</th>
             <th>Area</th>
+            <th>JSON</th>
         </tr>
         {% for facility in facilities %}
             <tr>
@@ -27,6 +28,10 @@
                 <td>{{ facility.facility_type }}</td>
                 <td>{{ facility.facility_status }}</td>
                 <td>{{ facility.facility_area }}</td>
+                <td>{% ifnotequal facility.json  None %}
+                    <a href="{{ facility.id }}/json">JSON</a>
+                {% endifnotequal %}
+                </td>
             </tr>
         {% endfor %}
     </table>

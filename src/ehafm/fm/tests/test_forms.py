@@ -12,6 +12,18 @@ from fm.models import Role
 
 
 class FMFormTest(TestCase):
+    def reject_invalid_json(self, form_class, data, number_of_objects_before):
+        model_class = form_class._meta.model
+        # fill in the form and save it and see if the number of objects is
+        # the same before and after (assumes json data invalid)
+        self.assertEqual(model_class.objects.count(), number_of_objects_before)
+        form = form_class(data)
+        with self.assertRaisesMessage(
+                ValueError, "The %s could not be created because the data"
+                            " didn't validate." % model_class.__name__
+        ):
+            form.save()
+
     def create_save_and_return_area(self, area_name, area_type, area_parent,
                                     number_of_areas_before):
         # fill in the form and save it and see if the number of areas is correct
@@ -40,7 +52,12 @@ class FMFormTest(TestCase):
         return area
 
     def create_save_and_return_facility(self, name, facility_type, status, area,
-                                        number_of_facilities_before):
+                                        number_of_facilities_before,
+                                        json='', json_dict=None):
+        if (json == '' and json_dict is not None) or \
+                (json != '' and json_dict is None):
+            self.fail('Arguments json and json_dict both have to be either'
+                      ' empty or set to valid and corresponding values.')
         # fill in the form and save it and see if the number of facilities is
         # correct both before and after
         if area is None:
@@ -51,7 +68,8 @@ class FMFormTest(TestCase):
         form = FacilityForm(data={'facility_name': name,
                                   'facility_type': facility_type,
                                   'facility_status': status,
-                                  'facility_area': area_id})
+                                  'facility_area': area_id,
+                                  'json': json, })
         if area is not None:
             area.save()
         facility = form.save()
@@ -68,16 +86,23 @@ class FMFormTest(TestCase):
         self.assertEqual(facility.facility_type, facility_type)
         self.assertEqual(facility.facility_status, status)
         self.assertEqual(facility.facility_area, area)
+        self.assertEqual(facility.json, json_dict)
         return facility
 
     def create_save_and_return_contact(self, name, phone, email,
-                                       number_of_contacts_before):
+                                       number_of_contacts_before,
+                                       json='', json_dict=None):
+        if (json == '' and json_dict is not None) or \
+                (json != '' and json_dict is None):
+            self.fail('Arguments json and json_dict both have to be either'
+                      ' empty or set to valid and corresponding values.')
         # fill in the form and save it and see if the number of contacts is
         # correct both before and after
         self.assertEqual(Contact.objects.count(), number_of_contacts_before)
         form = ContactForm(data={'contact_name': name,
                                  'contact_phone': phone,
                                  'contact_email': email,
+                                 'json': json,
         })
         contact = form.save()
         self.assertEqual(Contact.objects.count(),
@@ -92,6 +117,7 @@ class FMFormTest(TestCase):
         self.assertEqual(contact.contact_name, name)
         self.assertEqual(contact.contact_phone, phone)
         self.assertEqual(contact.contact_email, email)
+        self.assertEqual(contact.json, json_dict)
         return contact
 
     def create_save_and_return_role(self, name, contact, facility,
@@ -196,6 +222,13 @@ class FacilityFormTest(FMFormTest):
         self.assertIn('facility_area', fields)
         self.assertIn('id="id_facility_area"', form_html)
 
+        self.assertIn('json', fields)
+        self.assertEqual(widgets['json'].attrs['placeholder'],
+                         'Enter valid JSON or leave blank')
+        self.assertIn('placeholder="Enter valid JSON or leave blank"',
+                      form_html)
+        self.assertIn('id="id_json"', form_html)
+
     def test_form_validation_for_blank_items(self):
         form = FacilityForm(
             data={
@@ -221,6 +254,93 @@ class FacilityFormTest(FMFormTest):
         facility = self.create_save_and_return_facility(
             'facility 1', 'State Store', 'status 1', area, 0)
         self.assertIn(facility, area.area_facilities.all())
+
+    def test_valid_json_is_accepted(self):
+        json = """
+        {
+            "firstName": "John",
+            "lastName": "Smith",
+            "isAlive": true,
+            "age": 25,
+            "height_cm": 167.64,
+            "address": {
+                "streetAddress": "21 2nd Street",
+                "city": "New York",
+                "state": "NY",
+                "postalCode": "10021-3100"
+            },
+            "phoneNumbers": [
+                { "type": "home", "number": "212 555-1234" },
+                { "type": "office",  "number": "646 555-4567" }
+            ]
+        }
+        """
+        json_dict = {
+            u'phoneNumbers': [
+                {
+                    u'type': u'home',
+                    u'number': u'212 555-1234'
+                },
+                {
+                    u'type': u'office',
+                    u'number': u'646 555-4567'
+                }
+            ],
+            u'isAlive': True,
+            u'firstName': u'John',
+            u'lastName': u'Smith',
+            u'age': 25,
+            u'address': {
+                u'postalCode': u'10021-3100',
+                u'city': u'New York',
+                u'streetAddress': u'21 2nd Street',
+                u'state': u'NY'
+            },
+            u'height_cm': 167.64
+        }
+        self.create_save_and_return_facility('facility 1', 'State Store',
+                                             'status1', None, 0,
+                                             json=json, json_dict=json_dict)
+        self.create_save_and_return_facility('facility 2', 'Zonal Store',
+                                             'status2', None, 1,
+                                             json='', json_dict=None)
+        self.create_save_and_return_facility('facility 3', 'Health Facility',
+                                             'status3', None, 2,
+                                             json='{}', json_dict={})
+        self.create_save_and_return_facility('facility 4', 'LGA Store',
+                                             'status4', None, 3,
+                                             json='[1]', json_dict=[1])
+
+    def test_invalid_json_is_not_accepted(self):
+        invalid_json = """
+        {
+            "firstName": "John",
+            "lastName": "Smith",
+            "isAlive": true,
+            "age": 25,
+            "height_cm": 167.64,
+            "address": {
+                "streetAddress": "21 2nd Street",
+                "city": "New York",
+                "state": "NY",
+                "postalCode": "10021-3100"
+            },
+            "phoneNumbers": [
+                { "type": "home, "number": "212 555-1234" },
+                { "type": "office",  "number": "646 555-4567" }
+            ]
+        }
+        """
+        name = 'facility 1'
+        facility_type = 'LGA Store'
+        status = 'status 1'
+        data = {
+            'facility_name': name,
+            'facility_type': facility_type,
+            'facility_status': status,
+            'json': invalid_json,
+        }
+        self.reject_invalid_json(FacilityForm, data, 0)
 
 
 class ContactFormTest(FMFormTest):
@@ -248,6 +368,13 @@ class ContactFormTest(FMFormTest):
         self.assertIn('placeholder="Enter an e-mail"', form_html)
         self.assertIn('id="id_contact_email"', form_html)
 
+        self.assertIn('json', fields)
+        self.assertEqual(widgets['json'].attrs['placeholder'],
+                         'Enter valid JSON or leave blank')
+        self.assertIn('placeholder="Enter valid JSON or leave blank"',
+                      form_html)
+        self.assertIn('id="id_json"', form_html)
+
     def test_form_validation_for_blank_items(self):
         form = ContactForm(
             data={
@@ -263,6 +390,89 @@ class ContactFormTest(FMFormTest):
         self.create_save_and_return_contact('contact 2', '+1232', 'a2@b.cc', 1)
         self.create_save_and_return_contact('contact 3', '+1233', 'a3@b.cc', 2)
         self.create_save_and_return_contact('contact 4', '+1234', 'a4@b.cc', 3)
+
+    def test_valid_json_is_accepted(self):
+        json = """
+        {
+            "firstName": "John",
+            "lastName": "Smith",
+            "isAlive": true,
+            "age": 25,
+            "height_cm": 167.64,
+            "address": {
+                "streetAddress": "21 2nd Street",
+                "city": "New York",
+                "state": "NY",
+                "postalCode": "10021-3100"
+            },
+            "phoneNumbers": [
+                { "type": "home", "number": "212 555-1234" },
+                { "type": "office",  "number": "646 555-4567" }
+            ]
+        }
+        """
+        json_dict = {
+            u'phoneNumbers': [
+                {
+                    u'type': u'home',
+                    u'number': u'212 555-1234'
+                },
+                {
+                    u'type': u'office',
+                    u'number': u'646 555-4567'
+                }
+            ],
+            u'isAlive': True,
+            u'firstName': u'John',
+            u'lastName': u'Smith',
+            u'age': 25,
+            u'address': {
+                u'postalCode': u'10021-3100',
+                u'city': u'New York',
+                u'streetAddress': u'21 2nd Street',
+                u'state': u'NY'
+            },
+            u'height_cm': 167.64
+        }
+        self.create_save_and_return_contact('contact 1', '+1231', 'a1@b.cc', 0,
+                                            json=json, json_dict=json_dict)
+        self.create_save_and_return_contact('contact 2', '+1232', 'a2@b.cc', 1,
+                                            json='', json_dict=None)
+        self.create_save_and_return_contact('contact 3', '+1233', 'a3@b.cc', 2,
+                                            json='{}', json_dict={})
+        self.create_save_and_return_contact('contact 4', '+1234', 'a4@b.cc', 3,
+                                            json='[1]', json_dict=[1])
+
+    def test_invalid_json_is_not_accepted(self):
+        invalid_json = """
+        {
+            "firstName": "John",
+            "lastName": "Smith",
+            "isAlive": true,
+            "age": 25,
+            "height_cm": 167.64,
+            "address": {
+                "streetAddress": "21 2nd Street",
+                "city": "New York",
+                "state": "NY",
+                "postalCode": "10021-3100"
+            },
+            "phoneNumbers": [
+                { "type": "home, "number": "212 555-1234" },
+                { "type": "office",  "number": "646 555-4567" }
+            ]
+        }
+        """
+        name = 'contact 1'
+        phone = '+1231'
+        email = 'a1@b.cc'
+        data = {
+            'contact_name': name,
+            'contact_phone': phone,
+            'contact_email': email,
+            'json': invalid_json,
+        }
+        self.reject_invalid_json(ContactForm, data, 0)
 
 
 class RoleFormTest(FMFormTest):

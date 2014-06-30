@@ -1,9 +1,11 @@
 __author__ = 'Tomasz J. Kotarba <tomasz@kotarba.net>'
 __copyright__ = 'Copyright (c) 2014, Tomasz J. Kotarba. All rights reserved.'
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, HttpResponse
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+
+import jsonfield
 
 from fm.forms import AreaForm
 from fm.models import Area
@@ -97,3 +99,18 @@ def add_new_role_view(request):
             form.save()
             return redirect('/fm/roles/')
     return render(request, 'add_new_role.html', {'form': form})
+
+
+@login_required(login_url='/login')
+@staff_member_required
+def json_view(request, model_choice, container_id):
+    model = None
+    if model_choice == 'contacts':
+        model = Contact
+    elif model_choice == 'facilities':
+        model = Facility
+    container = model.objects.get(pk=container_id)
+    json_document = jsonfield.JSONField().dumps_for_display(container.json)
+    return HttpResponse(content=json_document,
+                        content_type='application/json;charset=utf-8')
+

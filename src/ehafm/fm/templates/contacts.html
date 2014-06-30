@@ -19,12 +19,17 @@
             <th>Name</th>
             <th>Phone</th>
             <th>E-mail</th>
+            <th>JSON</th>
         </tr>
         {% for contact in contacts %}
             <tr>
                 <td>{{ forloop.counter }}: {{ contact.contact_name }}</td>
                 <td><a href="tel:{{ contact.contact_phone }}">{{ contact.contact_phone }}</a></td>
                 <td><a href="mailto:{{ contact.contact_email }}">{{ contact.contact_email }}</a></td>
+                <td>{% ifnotequal contact.json  None %}
+                    <a href="{{ contact.id }}/json">JSON</a>
+                    {% endifnotequal %}
+                </td>
             </tr>
         {% endfor %}
     </table>
