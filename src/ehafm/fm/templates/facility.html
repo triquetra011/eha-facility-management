@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Facility: {{ facility.facility_name }}{% endblock %}
+
+{% block content %}
+
+    <h1>{{ facility.facility_name }}</h1>
+    <table>
+        <tr><td><b>Type</b></td><td>{{ facility.facility_type }}</td></tr>
+        <tr><td><b>Status</b></td><td>{{ facility.facility_status }}</td></tr>
+        <tr><td><b>Area</b></td><td>{{ facility.facility_area }}</td></tr>
+        {% ifnotequal facility.json  None %}
+            <tr>
+                <td><b>JSON</b></td>
+                <td><a href="{{ json_url }}">click here</a></td>
+            </tr>
+        {% endifnotequal %}
+    </table>
+
+{% endblock %}
