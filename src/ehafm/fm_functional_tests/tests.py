@@ -3,11 +3,13 @@ __copyright__ = 'Copyright (c) 2014, Tomasz J. Kotarba. All rights reserved.'
 
 import re
 import time
+import urlparse
 
 from django.test import LiveServerTestCase
 
 from pyvirtualdisplay import Display
 from selenium import webdriver
+import selenium.common.exceptions
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.select import Select
 
@@ -31,6 +33,25 @@ class FMTestCase(LiveServerTestCase):
         self.browser.implicitly_wait(3)
         self.fm_url = self.live_server_url + '/fm/'
         self.logout_url = self.live_server_url + '/logout'
+        self.json_example = """
+            {
+                "firstName": "John",
+                "lastName": "Smith",
+                "isAlive": true,
+                "age": 25,
+                "height_cm": 167.64,
+                "address": {
+                    "streetAddress": "21 2nd Street",
+                    "city": "New York",
+                    "state": "NY",
+                    "postalCode": "10021-3100"
+                },
+                "phoneNumbers": [
+                    { "type": "home", "number": "212 555-1234" },
+                    { "type": "office",  "number": "646 555-4567" }
+                ]
+            }
+        """
 
     def tearDown(self):
         self.browser.quit()
@@ -52,7 +73,7 @@ class FMTestCase(LiveServerTestCase):
     def log_admin_in(self):
         self.log_user_in('admin', 'adminpassword')
 
-    def follow_link(self, link):
+    def follow_link(self, link, check404=True):
         page_source = self.browser.page_source
         page_url = self.browser.current_url
         link.click()
@@ -62,6 +83,9 @@ class FMTestCase(LiveServerTestCase):
         self.assertNotEqual(
             page_url, self.browser.current_url,
             'Clicking the link has not changed the current URL')
+        if check404:
+            self.assertNotRegexpMatches(self.browser.page_source,
+                                        r'(?i)not found')
 
     def check_for_row_in_a_table(self, strings_in_one_row, table_id,
                                  regex_patterns_in_one_row=None,
@@ -156,7 +180,7 @@ class FMTestCase(LiveServerTestCase):
         self.current_user_goes_to_a_sub_page_of_the_fm_home_page(
             'id_roles_link', 'Roles')
 
-    def current_user_adds_new_area(
+    def current_user_adds_a_new_area(
             self, area_name, area_type, area_parent=None
     ):
         self.current_user_goes_to_areas()
@@ -184,6 +208,31 @@ class FMTestCase(LiveServerTestCase):
         header = self.browser.find_element_by_tag_name('h1')
         self.assertIn('Areas', header.text)
         self.check_for_row_in_a_table([area_name, area_type], 'id_areas_table')
+
+    def current_user_adds_a_new_facility(self, name, facility_type, status,
+                                         area=None, json=None):
+        self.current_user_goes_to_facilities()
+        # He clicks on a link allowing him to add new facilities and it takes
+        # him to a page for adding new facilities
+        link = self.browser.find_element_by_id('id_add_new_facility_link')
+        self.follow_link(link)
+        # He sees a page with a form. He decides to fill in all the input boxes.
+        # He fills in all the required fields.
+        inputbox = self.browser.find_element_by_id('id_facility_name')
+        inputbox.send_keys(name)
+        select = Select(self.browser.find_element_by_id('id_facility_type'))
+        select.select_by_visible_text(facility_type)
+        inputbox = self.browser.find_element_by_id('id_facility_status')
+        inputbox.send_keys(status)
+        if area:
+            select = Select(self.browser.find_element_by_id('id_facility_area'))
+            select.select_by_visible_text(area)
+        if json:
+            inputbox = self.browser.find_element_by_id('id_json')
+            inputbox.send_keys(json)
+        # He presses submit to save the new facility
+        submit = self.browser.find_element_by_id('id_submit_button')
+        submit.click()
 
 
 class AdminAndNonAdminVisitorTest(FMTestCase):
@@ -271,6 +320,15 @@ class AdminOperationsTest(FMTestCase):
             regex_patterns_in_one_row=regex_patterns
         )
 
+    def admin_adds_a_facility(self, name, facility_type, status, area=None,
+                              json=None):
+        # Zygmunt the Admin visits the app home page and follows the link for
+        # managing facilities
+        self.log_current_user_out()  # # in case the user has been logged in
+        self.log_admin_in()  # # log in as admin
+        self.current_user_adds_a_new_facility(name, facility_type, status,
+                                              area, json)
+
     def test_admin_can_add_and_delete_areas(self):
         # Zygmunt the Admin visits the app home page and follows the link for
         # managing areas
@@ -351,7 +409,8 @@ class AdminOperationsTest(FMTestCase):
         self.assertIn('Areas', self.browser.title)
         header = self.browser.find_element_by_tag_name('h1')
         self.assertIn('Areas', header.text)
-        self.check_for_row_in_a_table(['Barcelona', 'LGA'], 'id_areas_table')
+        self.check_for_row_in_a_table(['Barcelona (LGA in Krakow)'],
+                                      'id_areas_table')
 
         # He decides to see if the area appeared on the children list of the
         # parent object todo:
@@ -433,7 +492,7 @@ class AdminOperationsTest(FMTestCase):
         # He goes to add another facility this time with a different status and
         # an area where the facility is located...
         # But first he must add the area as there are no areas defined
-        self.current_user_adds_new_area('Helsinki', 'Ward')
+        self.current_user_adds_a_new_area('Helsinki', 'Ward')
         # He gets back to Facilities and clicks the link to add a new one
         self.current_user_goes_to_facilities()
         link = self.browser.find_element_by_id('id_add_new_facility_link')
@@ -659,31 +718,13 @@ class AdminOperationsTest(FMTestCase):
         name1 = 'Zygmunt the Admin'
         phone1 = '+44 9876 678 678'
         email1 = 'zygmunt@fm.zyg'
-        json1 = """
-            {
-                "firstName": "John",
-                "lastName": "Smith",
-                "isAlive": true,
-                "age": 25,
-                "height_cm": 167.64,
-                "address": {
-                    "streetAddress": "21 2nd Street",
-                    "city": "New York",
-                    "state": "NY",
-                    "postalCode": "10021-3100"
-                },
-                "phoneNumbers": [
-                    { "type": "home", "number": "212 555-1234" },
-                    { "type": "office",  "number": "646 555-4567" }
-                ]
-            }
-        """
-        self.admin_adds_a_contact(name1, phone1, email1, json1)
-        self.contact_added_successfully(name1, phone1, email1, json1)
+        self.admin_adds_a_contact(name1, phone1, email1, self.json_example)
+        self.contact_added_successfully(name1, phone1, email1,
+                                        self.json_example)
         # He follows the link and gets the correct JSON document
         json_link = self.browser.find_element_by_link_text('JSON')
         json_link.click()
-        json1_elements = re.findall(r'"[^"]+"', json1)
+        json1_elements = re.findall(r'"[^"]+"', self.json_example)
         for json_element in json1_elements:
             self.assertIn(json_element, self.browser.page_source)
         # He tries to add another contact but makes an error and enters invalid
@@ -726,27 +767,8 @@ class AdminOperationsTest(FMTestCase):
         select.select_by_visible_text('Zonal Store')
         inputbox = self.browser.find_element_by_id('id_facility_status')
         inputbox.send_keys('Beautiful')
-        json1 = """
-            {
-                "firstName": "John",
-                "lastName": "Smith",
-                "isAlive": true,
-                "age": 25,
-                "height_cm": 167.64,
-                "address": {
-                    "streetAddress": "21 2nd Street",
-                    "city": "New York",
-                    "state": "NY",
-                    "postalCode": "10021-3100"
-                },
-                "phoneNumbers": [
-                    { "type": "home", "number": "212 555-1234" },
-                    { "type": "office",  "number": "646 555-4567" }
-                ]
-            }
-        """
         inputbox = self.browser.find_element_by_id('id_json')
-        inputbox.send_keys(json1)
+        inputbox.send_keys(self.json_example)
         # He saves the new facility and is being taken to Facilities where he
         # can see his new facility on the list of facilities and the link to the
         # JSON data he has entered is there.
@@ -758,7 +780,7 @@ class AdminOperationsTest(FMTestCase):
         # He follows the link and gets the correct JSON document
         json_link = self.browser.find_element_by_link_text('JSON')
         json_link.click()
-        json1_elements = re.findall(r'"[^"]+"', json1)
+        json1_elements = re.findall(r'"[^"]+"', self.json_example)
         for json_element in json1_elements:
             self.assertIn(json_element, self.browser.page_source)
         # He tries to add another contact but makes an error and enters invalid
@@ -810,5 +832,37 @@ class AdminOperationsTest(FMTestCase):
                                       'id_facilities_table',
                                       forbidden_strings=['JSON'])
 
+    def test_admin_can_view_a_facility(self):
+        # Zygmunt the Admin adds a new area and a new facility located in this
+        # area.
+        self.log_admin_in()
+        self.current_user_adds_a_new_area('Nippon', 'State')
+        facility_name = 'Konohagakure'
+        facility_type = 'State Store'
+        facility_status = 'under attack!'
+        facility_area = 'Nippon (State)'
+        self.current_user_adds_a_new_facility(facility_name, facility_type,
+                                              facility_status, facility_area,
+                                              json=self.json_example)
+        # The facility shows on the list of facilities and there is a link
+        # which suggests he can view the newly added facility on a separate page
+        try:
+            link = self.browser.find_element_by_link_text(facility_name)
+        except selenium.common.exceptions.NoSuchElementException:
+            self.fail('The link to the just added facility not found on the'
+                      ' facilities page!')
+        # He clicks the link and it takes him to a page showing a detailed view
+        # of the facility
+        self.follow_link(link)
+        self.assertIn(facility_name, self.browser.title)
+        self.assertNotIn('Facilities', self.browser.title)
+        self.assertIn(facility_name, self.browser.page_source)
+        self.assertIn(facility_type, self.browser.page_source)
+        self.assertIn(facility_status, self.browser.page_source)
+        self.assertIn(facility_area, self.browser.page_source)
+        # The link to the JSON document for the just added facility is there
+        json_url = self.browser.current_url.rsplit('/', 1)[0] + '/json'
+        json_url_path = urlparse.urlsplit(json_url).path
+        self.assertIn(json_url_path, self.browser.page_source)
 
         # Relieved that everything is working perfectly Zygmunt goes to sleep.

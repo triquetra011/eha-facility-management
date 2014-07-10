@@ -24,7 +24,7 @@
         </tr>
         {% for facility in facilities %}
             <tr>
-                <td>{{ forloop.counter }}: {{ facility.facility_name }}</td>
+                <td><a href="{{ facility.id }}/view">{{ facility.facility_name }}</a></td>
                 <td>{{ facility.facility_type }}</td>
                 <td>{{ facility.facility_status }}</td>
                 <td>{{ facility.facility_area }}</td>

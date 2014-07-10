@@ -2,7 +2,6 @@ __author__ = 'Tomasz J. Kotarba <tomasz@kotarba.net>'
 __copyright__ = 'Copyright (c) 2014, Tomasz J. Kotarba. All rights reserved.'
 
 import re
-import urlparse
 
 from django.test import TestCase
 from django.core.urlresolvers import resolve, reverse
@@ -19,6 +18,7 @@ from fm.models import Area
 
 from fm.views import facilities_view
 from fm.views import add_new_facility_view
+from fm.views import facility_view
 from fm.forms import FacilityForm
 from fm.models import Facility
 
@@ -79,9 +79,9 @@ class FMPageBaseTest(TestCase):
         self.assertIs(found.func, view)
 
     def view_returns_correct_html_for_superusers(
-            self, view, template, data=None
+            self, view, template, data=None, *args, **kwargs
     ):
-        response = self.get_superuser_response(view)
+        response = self.get_superuser_response(view, *args, **kwargs)
         if data is None:
             data = {}
         if 'user' not in data:
@@ -179,6 +179,15 @@ class AreasPageTest(FMPageBaseTest):
         self.assertContains(response, 'State Zone')
         self.assertContains(response, 'Area 2')
         self.assertContains(response, 'Ward')
+
+    def test_page_displays_fully_qualified_area_names(self):
+        area = Area.objects.create(area_name='Area 1', area_type='LGA')
+        subarea = Area.objects.create(area_name='Area 2', area_type='Ward',
+                                      area_parent=area)
+        self.assertEqual(Area.objects.count(), 2)
+        response = self.get_superuser_response(areas_view)
+        self.assertContains(response, 'Area 1 (LGA)')
+        self.assertContains(response, 'Area 2 (Ward in Area 1')
 
 
 class AddNewAreaPageTest(FMPageBaseTest):
@@ -328,6 +337,22 @@ class FacilitiesPageTest(FMPageBaseTest):
         path_to_json = str(facility.id) + '/json'
         self.assertNotContains(response, path_to_json)
 
+    def test_page_displays_links_to_facility_views(self):
+        facility_name = 'Facility 1'
+        facility_form = FacilityForm(data={'facility_name': facility_name,
+                                      'facility_type': 'Zonal Store',
+                                      'facility_status': 'nice!',
+                                      'json': self.json_example})
+        facility_form.save()
+        facility = Facility.objects.first()
+        self.assertEqual(Facility.objects.count(), 1)
+        path_to_facility_view = str(facility.id) + '/view'
+        response = self.get_superuser_response(facilities_view)
+        self.assertRegexpMatches(
+            response.content, r'<a [^>]*href="' + path_to_facility_view +
+            r'"[^>]*>' + facility_name + r'</a>',
+            'No hyperlink to the just added facility found in the response!')
+
 
 class AddNewFacilityPageTest(FMPageBaseTest):
     def test_page_url_resolves_to_correct_view(self):
@@ -422,6 +447,66 @@ class FacilityJSONTest(FMPageBaseTest):
         json_bits = re.findall(r'"[^"]+"', self.json_example)
         for s in json_bits:
             self.assertContains(response, s)
+
+
+class FacilityViewTest(FMPageBaseTest):
+    def add_facility(self):
+        self.assertEqual(Facility.objects.count(), 0)
+        facility = FacilityForm(data={'facility_name': 'Facility 1',
+                                      'facility_type': 'Zonal Store',
+                                      'facility_status': 'nice!',
+                                      'json': self.json_example})
+        facility.save()
+        self.assertEqual(Facility.objects.count(), 1)
+
+    def test_facility_view_url_resolves_to_facility_view(self):
+        self.url_resolves_to_correct_view('/fm/facilities/1/view',
+                                          facility_view)
+
+    def test_page_returns_correct_html_for_superusers(self):
+        self.add_facility()
+        facility = Facility.objects.first()
+        json_url = reverse(facility_view, args=[facility.id])
+        json_url = json_url.rsplit('/', 1)[0] + '/json'
+        self.view_returns_correct_html_for_superusers(
+            facility_view, 'facility.html',
+            data={'facility': facility, 'json_url': json_url},
+            facility_id=facility.id)
+
+    def test_page_accessed_by_superusers_uses_correct_template(self):
+        self.add_facility()
+        # superuser logged in
+        self.log_admin_in()
+        response = self.client.get('/fm/facilities/1/view')
+        self.assertTemplateUsed(response, 'facility.html')
+
+    def test_page_redirects_and_asks_anonymous_users_to_log_in(self):
+        # not logged in
+        url = '/fm/facilities/1/view'
+        response = self.client.get(url, follow=True)
+        self.assertContains(response, 'Log in')
+
+    def test_page_redirects_and_asks_non_staff_users_to_log_in(self):
+        # regular user logged in
+        url = '/fm/facilities/1/view'
+        self.client.login(username='user1', password='userpasswd')
+        response = self.client.get(url, follow=True)
+        self.assertContains(response, 'Log in')
+
+    def test_page_displays_facility_information(self):
+        self.add_facility()
+        facility = Facility.objects.first()
+        response = self.get_superuser_response(facility_view,
+                                               facility.id)
+        self.assertContains(response, facility.facility_name, status_code=200)
+        self.assertContains(response, facility.facility_type)
+        self.assertContains(response, facility.facility_status)
+        self.assertContains(response, facility.facility_area)
+        self.assertRegexpMatches(
+            response.content,
+            r'<a [^>]*href="[^"]*/fm/facilities/%s/json"[^>]*>' %
+            str(facility.id)
+        )
 
 
 class ContactsPageTest(FMPageBaseTest):

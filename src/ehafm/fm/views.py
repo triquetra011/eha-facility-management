@@ -4,6 +4,7 @@ __copyright__ = 'Copyright (c) 2014, Tomasz J. Kotarba. All rights reserved.'
 from django.shortcuts import render, redirect, HttpResponse
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from django.core.urlresolvers import reverse
 
 import jsonfield
 
@@ -61,6 +62,20 @@ def add_new_facility_view(request):
             form.save()
             return redirect('/fm/facilities/')
     return render(request, 'add_new_facility.html', {'form': form})
+
+
+@login_required(login_url='/login')
+@staff_member_required
+def facility_view(request, facility_id):
+    # prepare a URL to the JSON document for this facility by substituting
+    # 'json' for 'view' in the current URL
+    json_url = reverse(facility_view, args=[facility_id])
+    json_url = json_url.rsplit('/', 1)[0] + '/json'
+    return render(request, 'facility.html',
+                  {
+                      'facility': Facility.objects.get(pk=facility_id),
+                      'json_url': json_url,
+                  })
 
 
 @login_required(login_url='/login')
