@@ -669,9 +669,6 @@ class AdminOperationsTest(FMTestCase):
         select.select_by_visible_text('Zygmunt the Admin <zygmunt@fm.zyg>')
         select = Select(self.browser.find_element_by_id('id_role_facility'))
         select.select_by_visible_text('Hyperion Lab [operational]')
-        ss = self.browser.get_screenshot_as_png()
-        with open('/home/vagrant/shared/ss.png', mode='w') as f:
-            f.write(ss)
         # Upon pressing submit he is redirected to Roles and can see his
         # new role on the list.
         submit = self.browser.find_element_by_id('id_submit_button')
